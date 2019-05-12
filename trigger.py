@@ -1,14 +1,13 @@
 import os
 import yaml
 import logging
-import paramiko
-import socket
+from subprocess import call
 
 # user ssh to rivanna and submit job for user
 
 MONITOR_FILE = 'user_queue.yaml'
-USERCASE_DIR = '/sfs/bart/usercase'
-LOG_FILE = '/sfs/bart/log/powhatan_trigger.log'
+USERCASE_DIR = '/home/yifan/Documents/Bart-web/BARTweb_docker/usercase' #path in the server
+LOG_FILE = '/home/yifan/Documents/Bart-web/BARTweb_docker/log/powhatan_trigger.log'
 
 # config logging
 # classical logger
@@ -60,14 +59,37 @@ def check_queue(user_queue, user_key):
         logger.info('Submit job: Begin execute task for this user.')
         # start marge-bart pipeline according to config
         # if cleaned upload files
+        user_config_file = os.path.join(user_path, 'user.config')
+        user_config_data = {}
+        with open(user_config_file, 'r') as fopen:
+            user_config_data = yaml.load(fopen)
+        if 'status' in user_config_data:
+            return
+
         if user_queue[user_key]['status'] == 'Cleaned':
-            ssh_flag = ssh_rivanna(user_key, user_path)
-            if ssh_flag == -1:
-                logger.error('Submit job: SSH Rivanna failed!!!')
-            if ssh_flag == 0:
+            callret,commandret = execute_sh(user_config_data)
+            if callret == 0:
                 logger.info('Submit job: SSH Rivanna succeed!!!')
+            else:
+                logger.error('Submit job: SSH Rivanna failed!!!')
+                logger.error('error message from subprocess.call: {}'.format(callret))
+                logger.error('error message from command line: {}'.format(commandret))
+        else:
+            logger.error('This user uploaded harmful stuff: {}'.format(user_key))
     else:
         logger.error('Check user queue: ' + str(user_key) + ' user file is missing. Please check!')
+
+def execute_sh(user_data):
+
+    # TODO: get the return message from the command line
+    command_dir = os.path.join(user_data['user_path'],'run_bart.sh')
+    cmd = '/bin/bash '+command_dir
+    callret = call(cmd, shell=True)
+    commandret = []
+
+    return callret,commandret
+
+
 
 
 def ssh_rivanna(user_key, user_path):
